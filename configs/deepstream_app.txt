@@ -8,14 +8,14 @@ enable=1
 
 [source0]
 enable=0
-type=2
+type=1
 
 [primary-gie]
 enable=1
 config-file=config_infer_primary_trafficcamnet.txt
 
 [tracker]
-enable=1
+enable=0
 
 [osd]
 enable=1
@@ -28,5 +28,5 @@ type=2
 file-loop=1
 
 [nvds-analytics]
-enable=1
+enable=0
 config-file=config_nvdsanalytics.txt
