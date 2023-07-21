@@ -1,0 +1,103 @@
+[application]
+enable-perf-measurement=1
+perf-measurement-interval-sec=1
+gie-kitti-output-dir=­
+kitti-track-output-dir=­
+
+[tiled-display]
+enable=1
+rows=1
+columns=1
+width=1280
+height=720
+gpu-id=0
+
+[source0]
+enable=1
+#Type - 1=CameraV4L2 2=URI 3=MultiURI
+type=2
+uri=file://../streams/sample_1080p_h265.mp4
+gpu-id=0
+
+[streammux]
+gpu-id=0
+batch-size=1
+batched-push-timeout=40000
+## Set muxer output width and height
+width=1920
+height=1080
+
+[sink0]
+enable=1
+#Type - 1=FakeSink 2=EglSink 3=File
+type=2
+sync=1
+source-id=0
+gpu-id=0
+
+[osd]
+enable=1
+gpu-id=0
+border-width=3
+text-size=15
+text-color=1;1;1;1;
+text-bg-color=0.3;0.3;0.3;1
+font=Arial
+
+[primary-gie]
+enable=1
+gpu-id=0
+# Modify as necessary
+model-engine-file=../models/trafficcamnet/resnet18_trafficcamnet_pruned.etlt_b1_gpu0_fp32.engine
+batch-size=1
+#Required by the app for OSD, not a plugin property
+bbox-border-color0=1;0;0;1
+bbox-border-color1=0;1;1;1
+bbox-border-color2=0;0;1;1
+bbox-border-color3=0;1;0;1
+gie-unique-id=1
+config-file=config_infer_primary_trafficcamnet.txt
+
+[tracker]
+enable=1
+# For NvDCF and DeepSORT tracker, tracker-width and tracker-height must be a multiple of 32, respectively
+tracker-width=640
+tracker-height=384
+ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+# ll-config-file required to set different tracker types
+# ll-config-file=config_tracker_IOU.yml
+ll-config-file=.config_tracker_NvDCF_perf.yml
+# ll-config-file=.config_tracker_NvDCF_max_perf.yml
+# ll-config-file=.config_tracker_NvDCF_accuracy.yml
+# ll-config-file=.config_tracker_DeepSORT.yml
+gpu-id=0
+enable-batch-process=1
+enable-past-frame=1
+display-tracking-id=1
+
+[secondary-gie0]
+enable=1
+model-engine-file=../models/vehiclemakenet/resnet18_vehiclemakenet_pruned.etlt_b4_gpu0_fp32.engine
+gpu-id=0
+batch-size=4
+gie-unique-id=4
+operate-on-gie-id=1
+operate-on-class-ids=0;
+config-file=config_infer_secondary_vehiclemakenet.txt
+
+[secondary-gie1]
+enable=1
+model-engine-file=../models/tao_pretrained_models/vehicletypenet/resnet18_vehicletypenet_pruned.etlt_b4_gpu0_fp32.engine
+gpu-id=0
+batch-size=4
+gie-unique-id=5
+operate-on-gie-id=1
+operate-on-class-ids=0;
+config-file=config_infer_secondary_vehicletypenet.txt
+
+[tests]
+file-loop=0
+
+[nvds-analytics]
+enable=0
+config-file=config_nvdsanalytics.txt

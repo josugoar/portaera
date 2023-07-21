@@ -1,5 +1,4 @@
-# The values in the config file are overridden by values set through GObject
-# properties.
+# https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvdsanalytics.html
 
 [property]
 enable=1
