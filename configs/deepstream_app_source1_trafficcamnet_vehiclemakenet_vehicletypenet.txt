@@ -87,7 +87,7 @@ config-file=config_infer_secondary_vehiclemakenet.txt
 
 [secondary-gie1]
 enable=1
-model-engine-file=../models/tao_pretrained_models/vehicletypenet/resnet18_vehicletypenet_pruned.etlt_b4_gpu0_fp32.engine
+model-engine-file=../models/vehicletypenet/resnet18_vehicletypenet_pruned.etlt_b4_gpu0_fp32.engine
 gpu-id=0
 batch-size=4
 gie-unique-id=5
