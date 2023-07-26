@@ -6,7 +6,7 @@ tlt-model-key=tlt_encode
 tlt-encoded-model=../models/vehiclemakenet/resnet18_vehiclemakenet_pruned.etlt
 labelfile-path=../models/vehiclemakenet/labels.txt
 int8-calib-file=../models/vehiclemakenet/vehiclemakenet_int8.txt
-model-engine-file=../models/vehiclemakenet/resnet18_vehiclemakenet_pruned.etlt_b4_gpu0_fp32.engine
+model-engine-file=../models/vehiclemakenet/resnet18_vehiclemakenet_pruned.etlt_b4_gpu0_int8.engine
 infer-dims=3;224;224
 uff-input-order=0
 uff-input-blob-name=input_1
@@ -14,7 +14,7 @@ batch-size=4
 process-mode=2
 model-color-format=0
 ## 0=FP32, 1=INT8, 2=FP16 mode
-network-mode=0
+network-mode=1
 network-type=1
 num-detected-classes=4
 interval=0
