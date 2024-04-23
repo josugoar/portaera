@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PORTAERA</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css"
+    />
+    <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.css"
+    />
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <link rel="stylesheet" href="dist/js-snackbar.css" />
+    <script src="dist/js-snackbar.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      #map {
+        height: 100vh;
+      }
+
+      .gate {
+        background-image: url('data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20">%3Cpath d="m13.5 3.5c-1.4 0-2.5 1.1-2.5 2.5 0 .3 0 .6.2.9l-3.8 3.8c-.3-.1-.6-.2-.9-.2-1.4 0-2.5 1.1-2.5 2.5s1.1 2.5 2.5 2.5 2.5-1.1 2.5-2.5c0-.3 0-.6-.2-.9l3.8-3.8c.3.1.6.2.9.2 1.4 0 2.5-1.1 2.5-2.5s-1.1-2.5-2.5-2.5z"/>%3C/svg>');
+      }
+
+      .zone {
+        background-image: url('data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20">%3Cpath d="m15 12.3v-4.6c.6-.3 1-1 1-1.7 0-1.1-.9-2-2-2-.7 0-1.4.4-1.7 1h-4.6c-.3-.6-1-1-1.7-1-1.1 0-2 .9-2 2 0 .7.4 1.4 1 1.7v4.6c-.6.3-1 1-1 1.7 0 1.1.9 2 2 2 .7 0 1.4-.4 1.7-1h4.6c.3.6 1 1 1.7 1 1.1 0 2-.9 2-2 0-.7-.4-1.4-1-1.7zm-8-.3v-4l1-1h4l1 1v4l-1 1h-4z"/>%3C/svg>');
+      }
+
+      .movement {
+        background-image: url("dist/moving_FILL0_wght400_GRAD0_opsz24.svg");
+      }
+
+      .video-play {
+        background-image: url("dist/play_arrow_FILL0_wght400_GRAD0_opsz24.svg");
+      }
+
+      .video-pause {
+        background-image: url("dist/pause_FILL0_wght400_GRAD0_opsz24.svg");
+      }
+
+      .maplibregl-popup-tip {
+        display: none;
+      }
+
+      .maplibregl-popup-content {
+        border-radius: 3px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        padding: 5px 5px;
+        pointer-events: auto;
+        position: relative;
+        transition: all 0.5s linear;
+        user-select: none;
+      }
+
+      .popup-inverted {
+        background: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="snackbar"></div>
+    <script>
+      const triggersSherbrooke = [
+        {
+          time: 1.379149,
+          snack: { message: "Car (1) exited", status: "error" },
+        },
+      ];
+
+      const triggersStmarc = [
+        {
+          time: 15.791629,
+          snack: {
+            message: "Near miss of bicycle with id 17",
+            status: "warning",
+          },
+        },
+        {
+          time: 18.539693,
+          snack: {
+            message: "5 pedestrian(s) crossing North-Crosswalk",
+            status: "info",
+          },
+        },
+      ];
+
+      const triggersRouen = [
+        {
+          time: 22.306007,
+          snack: { message: "Car (10) illegal maneuver", status: "error" },
+        },
+      ];
+
+      const triggers = triggersRouen;
+
+      const map = new maplibregl.Map({
+        attributionControl: false,
+        container: "map",
+        zoom: 7.5,
+        pitchWithRotate: false,
+        style: "https://demotiles.maplibre.org/style.json",
+        style: {
+          version: 8,
+          sources: {
+            video: {
+              type: "video",
+              urls: ["http://0.0.0.0:9000/sherbrooke_gt.mp4"],
+              coordinates: [
+                [-1, 1],
+                [1, 1],
+                [1, -1],
+                [-1, -1],
+              ],
+            },
+          },
+          layers: [
+            {
+              id: "video-layer",
+              type: "raster",
+              source: "video",
+            },
+          ],
+        },
+      });
+
+      map.on("load", async () => {
+        let triggeridx = 0;
+        let prevTime = 0;
+
+        function onAnimationFrame(timestamp) {
+          const currentTime = map.getSource("video").video.currentTime;
+
+          if (currentTime < prevTime) {
+            triggeridx = 0;
+          }
+
+          if (triggeridx >= triggers.length) {
+            requestAnimationFrame(onAnimationFrame);
+            return;
+          }
+
+          if (currentTime > triggers[triggeridx].time) {
+            if (triggers[triggeridx].filter !== undefined) {
+              for (featureId in featureProperties) {
+                if (
+                  featureProperties[featureId].name ===
+                  triggers[triggeridx].filter
+                ) {
+                  const popup = featureProperties[featureId].popup;
+
+                  popup._content.classList.toggle("popup-inverted");
+                  if (!triggers[triggeridx].occupancy) {
+                    setTimeout(() => {
+                      popup._content.classList.toggle("popup-inverted");
+                    }, 500);
+                  }
+
+                  break;
+                }
+              }
+            }
+
+            if (triggers[triggeridx].snack !== undefined) {
+              SnackBar({
+                message: triggers[triggeridx].snack.message,
+                status: triggers[triggeridx].snack.status,
+              });
+            }
+
+            triggeridx++;
+          }
+
+          prevTime = currentTime;
+          requestAnimationFrame(onAnimationFrame);
+        }
+
+        map.getSource("video").pause();
+
+        const image = await map.loadImage(
+          "http://0.0.0.0:9000//chevron_right_FILL0_wght400_GRAD0_opsz24.png"
+        );
+        map.addImage("arrow", image.data, { sdf: true });
+
+        requestAnimationFrame(onAnimationFrame);
+      });
+
+      MapboxDraw.constants.classes.CONTROL_BASE = "maplibregl-ctrl";
+      MapboxDraw.constants.classes.CONTROL_PREFIX = "maplibregl-ctrl-";
+      MapboxDraw.constants.classes.CONTROL_GROUP = "maplibregl-ctrl-group";
+
+      const Gate = Object.assign({}, MapboxDraw.modes.draw_line_string);
+      const Zone = Object.assign({}, MapboxDraw.modes.draw_polygon);
+      const Movement = Object.assign({}, MapboxDraw.modes.draw_line_string);
+
+      const draw = new MapboxDraw({
+        displayControlsDefault: false,
+        modes: Object.assign(
+          {
+            gate: Gate,
+            zone: Zone,
+            movement: Movement,
+          },
+          MapboxDraw.modes
+        ),
+        styles: [
+          {
+            id: "gl-draw-polygon-fill-inactive",
+            type: "fill",
+            filter: [
+              "all",
+              ["==", "active", "false"],
+              ["==", "$type", "Polygon"],
+              ["!=", "mode", "static"],
+            ],
+            paint: {
+              "fill-color": "#3bb2d0",
+              "fill-outline-color": "#3bb2d0",
+              "fill-opacity": 0.1,
+            },
+          },
+          {
+            id: "gl-draw-polygon-fill-active",
+            type: "fill",
+            filter: [
+              "all",
+              ["==", "active", "true"],
+              ["==", "$type", "Polygon"],
+            ],
+            paint: {
+              "fill-color": "#fbb03b",
+              "fill-outline-color": "#fbb03b",
+              "fill-opacity": 0.1,
+            },
+          },
+          {
+            id: "gl-draw-polygon-midpoint",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "$type", "Point"],
+              ["==", "meta", "midpoint"],
+            ],
+            paint: {
+              "circle-radius": 3,
+              "circle-color": "#fbb03b",
+            },
+          },
+          {
+            id: "gl-draw-polygon-stroke-inactive",
+            type: "line",
+            filter: [
+              "all",
+              ["==", "active", "false"],
+              ["==", "$type", "Polygon"],
+              ["!=", "mode", "static"],
+            ],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#3bb2d0",
+              "line-width": 4,
+            },
+          },
+          {
+            id: "gl-draw-polygon-stroke-active",
+            type: "line",
+            filter: [
+              "all",
+              ["==", "active", "true"],
+              ["==", "$type", "Polygon"],
+            ],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#fbb03b",
+              "line-dasharray": [0.2, 2],
+              "line-width": 4,
+            },
+          },
+          {
+            id: "gl-draw-line-inactive",
+            type: "line",
+            filter: [
+              "all",
+              ["==", "active", "false"],
+              ["==", "$type", "LineString"],
+              ["!=", "mode", "static"],
+            ],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#3bb2d0",
+              "line-width": 4,
+            },
+          },
+          {
+            id: "gl-draw-line-active",
+            type: "line",
+            filter: [
+              "all",
+              ["==", "$type", "LineString"],
+              ["==", "active", "true"],
+            ],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#fbb03b",
+              "line-dasharray": [0.2, 2],
+              "line-width": 4,
+            },
+          },
+          {
+            id: "gl-draw-polygon-and-line-vertex-stroke-inactive",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "meta", "vertex"],
+              ["==", "$type", "Point"],
+              ["!=", "mode", "static"],
+            ],
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#fff",
+            },
+          },
+          {
+            id: "gl-draw-polygon-and-line-vertex-inactive",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "meta", "vertex"],
+              ["==", "$type", "Point"],
+              ["!=", "mode", "static"],
+            ],
+            paint: {
+              "circle-radius": 3,
+              "circle-color": "#fbb03b",
+            },
+          },
+          {
+            id: "gl-draw-point-point-stroke-inactive",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "active", "false"],
+              ["==", "$type", "Point"],
+              ["==", "meta", "feature"],
+              ["!=", "mode", "static"],
+            ],
+            paint: {
+              "circle-radius": 5,
+              "circle-opacity": 1,
+              "circle-color": "#fff",
+            },
+          },
+          {
+            id: "gl-draw-point-inactive",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "active", "false"],
+              ["==", "$type", "Point"],
+              ["==", "meta", "feature"],
+              ["!=", "mode", "static"],
+            ],
+            paint: {
+              "circle-radius": 3,
+              "circle-color": "#3bb2d0",
+            },
+          },
+          {
+            id: "gl-draw-point-stroke-active",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "$type", "Point"],
+              ["==", "active", "true"],
+              ["!=", "meta", "midpoint"],
+            ],
+            paint: {
+              "circle-radius": 7,
+              "circle-color": "#fff",
+            },
+          },
+          {
+            id: "gl-draw-point-active",
+            type: "circle",
+            filter: [
+              "all",
+              ["==", "$type", "Point"],
+              ["!=", "meta", "midpoint"],
+              ["==", "active", "true"],
+            ],
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#fbb03b",
+            },
+          },
+          {
+            id: "gl-draw-polygon-fill-static",
+            type: "fill",
+            filter: [
+              "all",
+              ["==", "mode", "static"],
+              ["==", "$type", "Polygon"],
+            ],
+            paint: {
+              "fill-color": "#404040",
+              "fill-outline-color": "#404040",
+              "fill-opacity": 0.1,
+            },
+          },
+          {
+            id: "gl-draw-polygon-stroke-static",
+            type: "line",
+            filter: [
+              "all",
+              ["==", "mode", "static"],
+              ["==", "$type", "Polygon"],
+            ],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#404040",
+              "line-width": 4,
+            },
+          },
+          {
+            id: "gl-draw-line-static",
+            type: "line",
+            filter: [
+              "all",
+              ["==", "mode", "static"],
+              ["==", "$type", "LineString"],
+            ],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#404040",
+              "line-width": 4,
+            },
+          },
+          {
+            id: "gl-draw-point-static",
+            type: "circle",
+            filter: ["all", ["==", "mode", "static"], ["==", "$type", "Point"]],
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#404040",
+            },
+          },
+          {
+            id: "movement-inactive",
+            type: "symbol",
+            filter: [
+              "all",
+              ["==", "active", "false"],
+              ["==", "$type", "LineString"],
+              ["!=", "mode", "static"],
+              ["==", "user_mode", "movement"],
+            ],
+            layout: {
+              "icon-image": "arrow",
+              "symbol-placement": "line",
+              "icon-size": 1.75,
+              "symbol-spacing": 75,
+            },
+            paint: {
+              "icon-color": "#3bb2d0",
+            },
+          },
+          {
+            id: "movement-active",
+            type: "symbol",
+            filter: [
+              "all",
+              ["==", "$type", "LineString"],
+              ["==", "active", "true"],
+              ["==", "user_mode", "movement"],
+            ],
+            layout: {
+              "icon-image": "arrow",
+              "symbol-placement": "line",
+              "icon-size": 1.75,
+              "symbol-spacing": 75,
+            },
+            paint: {
+              "icon-color": "#fbb03b",
+            },
+          },
+        ],
+        userProperties: true,
+      });
+      map.addControl(draw);
+
+      featureProperties = {};
+
+      map.on("draw.create", (e) => {
+        const names = Object.keys(featureProperties).map(
+          (id) => featureProperties[id].name
+        );
+
+        e.features.forEach((feature) => {
+          const name = prompt("Enter spatial filter name:");
+
+          if (names.includes(name)) {
+            alert(`Spatial filter ${name} already exists`);
+            draw.delete(feature.id);
+          } else if (name === null || name === "") {
+            draw.delete(feature.id);
+          } else {
+            draw.setFeatureProperty(feature.id, "mode", draw.getMode());
+
+            const centerOfMass = turf.centerOfMass(feature);
+
+            const popup = new maplibregl.Popup({
+              closeButton: false,
+              closeOnClick: false,
+              focusAfterOpen: false,
+            });
+
+            let src = "";
+            if (draw.getMode() === "gate") {
+              src =
+                'data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20">%3Cpath d="m13.5 3.5c-1.4 0-2.5 1.1-2.5 2.5 0 .3 0 .6.2.9l-3.8 3.8c-.3-.1-.6-.2-.9-.2-1.4 0-2.5 1.1-2.5 2.5s1.1 2.5 2.5 2.5 2.5-1.1 2.5-2.5c0-.3 0-.6-.2-.9l3.8-3.8c.3.1.6.2.9.2 1.4 0 2.5-1.1 2.5-2.5s-1.1-2.5-2.5-2.5z"/>%3C/svg>';
+            } else if (draw.getMode() === "zone") {
+              src =
+                'data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20">%3Cpath d="m15 12.3v-4.6c.6-.3 1-1 1-1.7 0-1.1-.9-2-2-2-.7 0-1.4.4-1.7 1h-4.6c-.3-.6-1-1-1.7-1-1.1 0-2 .9-2 2 0 .7.4 1.4 1 1.7v4.6c-.6.3-1 1-1 1.7 0 1.1.9 2 2 2 .7 0 1.4-.4 1.7-1h4.6c.3.6 1 1 1.7 1 1.1 0 2-.9 2-2 0-.7-.4-1.4-1-1.7zm-8-.3v-4l1-1h4l1 1v4l-1 1h-4z"/>%3C/svg>';
+            } else if (draw.getMode() === "movement") {
+              src = "dist/moving_FILL0_wght400_GRAD0_opsz24.svg";
+            }
+            popup.setLngLat(centerOfMass.geometry.coordinates);
+            popup.setHTML(
+              `<div style="display: flex;"><img style='padding-right: 5px;' src='${src}''></span><span style='padding-right: 2.5px;'>${name}</span></div>`
+            );
+            popup.setSubpixelPositioning(true);
+            popup.addTo(map);
+
+            popup._container.addEventListener("click", (e) => {
+              draw.changeMode("simple_select", {
+                featureIds: [feature.id],
+              });
+              popup._content.classList.toggle("popup-inverted");
+              setTimeout(() => {
+                popup._content.classList.toggle("popup-inverted");
+              }, 500);
+            });
+
+            popup._container.addEventListener("mousedown", (e) => {
+              function onMouseUp(e) {
+                document.onmouseup = null;
+                document.onmousemove = null;
+              }
+
+              function onMouseMove(e) {
+                popup.setLngLat(
+                  map.unproject({
+                    x: e.clientX - pos.x,
+                    y: e.clientY - pos.y,
+                  })
+                );
+              }
+
+              const popupPos = map.project(popup.getLngLat());
+              const pos = {
+                x: e.clientX - popupPos.x,
+                y: e.clientY - popupPos.y,
+              };
+
+              document.onmouseup = onMouseUp;
+              document.onmousemove = onMouseMove;
+            });
+
+            featureProperties[feature.id] = { name, popup };
+          }
+        });
+      });
+
+      map.on("draw.delete", (e) => {
+        e.features.forEach((feature) => {
+          const popup = featureProperties[feature.id].popup;
+          popup.remove();
+        });
+      });
+
+      map.on("draw.update", (e) => {
+        e.features.forEach((feature) => {
+          const centerOfMass = turf.centerOfMass(feature);
+
+          const popup = featureProperties[feature.id].popup;
+          popup.setLngLat(centerOfMass.geometry.coordinates);
+        });
+      });
+
+      map.on("draw.selectionchange", (e) => {
+        e.features.forEach((feature) => {
+          const popup = featureProperties[feature.id].popup;
+          popup._content.classList.toggle("popup-inverted");
+          setTimeout(() => {
+            popup._content.classList.toggle("popup-inverted");
+          }, 500);
+
+          if (feature.properties.mode === "movement") {
+            for (const otherFeature of draw.getAll().features) {
+              if (
+                otherFeature.id === feature.id ||
+                otherFeature.properties.mode === "movement"
+              ) {
+                continue;
+              }
+
+              if (turf.booleanIntersects(feature, otherFeature)) {
+                SnackBar({
+                  message: `Movement ${
+                    featureProperties[feature.id].name
+                  } passes through ${featureProperties[otherFeature.id].name}`,
+                });
+              }
+            }
+          }
+        });
+      });
+
+      class MaplibreGLButtonsControl {
+        constructor(btnProperties) {
+          this.btnProperties = btnProperties;
+        }
+
+        onAdd(map) {
+          this.container = document.createElement("div");
+          this.container.className = "maplibregl-ctrl-group maplibregl-ctrl";
+
+          for (const btnProperty of this.btnProperties) {
+            const btn = document.createElement("button");
+            btn.className =
+              "maplibregl-ctrl-icon mapbox-gl-draw_ctrl-draw-btn " +
+              btnProperty.className;
+            btn.type = "button";
+            btn.title = btnProperty.title;
+            btn.onclick = btnProperty.eventHandler;
+
+            this.container.appendChild(btn);
+          }
+          return this.container;
+        }
+
+        onRemove() {
+          this.container.parentNode.removeChild(this.container);
+        }
+      }
+
+      const ctrlFilters = new MaplibreGLButtonsControl([
+        {
+          className: "gate",
+          title: "Gate",
+          eventHandler: () => {
+            draw.changeMode("gate");
+          },
+        },
+        {
+          className: "zone",
+          title: "Zone",
+          eventHandler: () => {
+            draw.changeMode("zone");
+          },
+        },
+        {
+          className: "movement",
+          title: "Movement",
+          eventHandler: () => {
+            draw.changeMode("movement");
+          },
+        },
+        {
+          className: "mapbox-gl-draw_trash",
+          title: "Trash",
+          eventHandler: () => {
+            draw.trash();
+          },
+        },
+      ]);
+      map.addControl(ctrlFilters, "top-left");
+
+      let playingVideo = false;
+      const ctrlVideo = new MaplibreGLButtonsControl([
+        {
+          className: "video-play",
+          title: "Play/Pause",
+          eventHandler: (e) => {
+            playingVideo = !playingVideo;
+            if (playingVideo) {
+              e.srcElement.classList.remove("video-play");
+              e.srcElement.classList.add("video-pause");
+              map.getSource("video").play();
+            } else {
+              e.srcElement.classList.remove("video-pause");
+              e.srcElement.classList.add("video-play");
+              map.getSource("video").pause();
+            }
+          },
+        },
+      ]);
+      map.addControl(ctrlVideo, "top-left");
+
+      const ctrlFullscreen = new maplibregl.FullscreenControl();
+      map.addControl(ctrlFullscreen, "top-right");
+
+      const ctrlNavigation = new maplibregl.NavigationControl({
+        showCompass: false,
+      });
+      map.addControl(ctrlNavigation, "top-right");
+    </script>
+  </body>
+</html>
