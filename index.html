@@ -70,38 +70,73 @@
     <div id="map"></div>
     <div id="snackbar"></div>
     <script>
+      const triggersRouen = [
+        {
+          time: 6,
+          snack: {
+            message: "Near miss between car (10) and pedestrian (4)",
+            status: "warning",
+          },
+        },
+        {
+          time: 11,
+          snack: { message: "Jaywalking pedestrian (4)", status: "error" },
+        },
+        {
+          time: 15,
+          snack: { message: "Bicycle (12) on the road", status: "error" },
+        },
+      ];
+
       const triggersSherbrooke = [
         {
-          time: 1.379149,
-          snack: { message: "Car (1) exited", status: "error" },
+          time: 8,
+          snack: { message: "Invalid parking of car (5)", status: "warning" },
+        },
+        {
+          time: 15,
+          snack: {
+            message: "Red light violation of pedestrian (0)",
+            status: "error",
+          },
+        },
+        {
+          time: 23,
+          snack: { message: "Incorrect turn of car (10)", status: "error" },
         },
       ];
 
       const triggersStmarc = [
         {
-          time: 15.791629,
+          time: 0,
+          snack: { message: "Car (7) over the speed limit", status: "info" },
+        },
+        {
+          time: 4,
+          snack: { message: "Congested crossing", status: "info" },
+        },
+        {
+          time: 15,
           snack: {
-            message: "Near miss of bicycle with id 17",
+            message: "Near miss between bicycle (17) and pedestrian (15)",
             status: "warning",
           },
         },
         {
-          time: 18.539693,
+          time: 18.5,
           snack: {
-            message: "5 pedestrian(s) crossing North-Crosswalk",
-            status: "info",
+            message: "Bicycle (17) going opposite direction",
+            status: "error",
           },
         },
-      ];
-
-      const triggersRouen = [
         {
-          time: 22.306007,
-          snack: { message: "Car (10) illegal maneuver", status: "error" },
+          time: 25,
+          snack: { message: "Traffic congestion", status: "info" },
         },
       ];
 
-      const triggers = triggersRouen;
+      const triggers = triggersStmarc;
+      const video = "http://0.0.0.0:9000/stmarc_gt.mp4";
 
       const map = new maplibregl.Map({
         attributionControl: false,
@@ -114,12 +149,12 @@
           sources: {
             video: {
               type: "video",
-              urls: ["http://0.0.0.0:9000/sherbrooke_gt.mp4"],
+              urls: [video],
               coordinates: [
-                [-1, 1],
-                [1, 1],
-                [1, -1],
-                [-1, -1],
+                [0, 1],
+                [1.77, 1],
+                [1.77, 0],
+                [0, 0],
               ],
             },
           },
